@@ -288,7 +288,7 @@ cluster_info find_nearest_cluster(pcl::ModelCoefficients::Ptr plane_coefficients
     {
       float object_dist_from_camera = calc_dist_from_camera(clusterCenter);
 
-      if (object_dist_from_camera > 0.2)
+      if (object_dist_from_camera > 0.3)
       {
         if (calc_dist_from_camera(clusterCenter) < calc_dist_from_camera(nearestCluster.centroid))
         {
