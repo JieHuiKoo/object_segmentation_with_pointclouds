@@ -15,11 +15,9 @@
 #include <sstream>
 
 ros::Publisher pub;
-double _max_distance = 0.005;
+double _max_distance = 0.01;
 double _min_percentage = 5;
 bool _color_pc_with_error = false;
-
-
 
 class ColorMap{
 public:
@@ -66,58 +64,10 @@ private:
     double mn,mx;
 };
 
-class Color{
-private:
-    uint8_t r;
-    uint8_t g;
-    uint8_t b;
-
-public:
-    Color(uint8_t R,uint8_t G,uint8_t B):r(R),g(G),b(B){
-
-    }
-
-    void getColor(uint8_t &R,uint8_t &G,uint8_t &B){
-        R = r;
-        G = g;
-        B = b;
-    }
-    void getColor(double &rd, double &gd, double &bd){
-        rd = (double)r/255;
-        gd = (double)g/255;
-        bd = (double)b/255;
-    }
-    uint32_t getColor(){
-        return ((uint32_t)r<<16|(uint32_t)g<<8|(uint32_t)b);
-    }
-};
-std::vector<Color> colors;
 double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients){
     double f1 = fabs(coefficients->values[0]*pt.x+coefficients->values[1]*pt.y+coefficients->values[2]*pt.z+coefficients->values[3]);
     double f2 = sqrt(pow(coefficients->values[0],2)+pow(coefficients->values[1],2)+pow(coefficients->values[2],2));
     return f1/f2;
-}
-
-sensor_msgs::PointCloud2 apply_voxel_filter(const sensor_msgs::PointCloud2ConstPtr& inputCloud)
-{
-  // Create container for input data
-  pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;       // Request for memory allocation on the heap 
-  pcl::PCLPointCloud2ConstPtr cloudPTR(cloud);                // for a pointer to a type pcl::PCLPointCloud2
-
-  pcl::PCLPointCloud2 cloud_filtered;                         // Filtered cloud
-  
-  sensor_msgs::PointCloud2 output;                            // Output cloud
-
-  //Convert from sensor_msgs to pcl
-  pcl_conversions::toPCL(*inputCloud, *cloud);
-  pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
-  sor.setInputCloud(cloudPTR);
-  sor.setLeafSize (0.04, 0.04, 0.04);
-  sor.filter(cloud_filtered);
-
-  pcl_conversions::fromPCL(cloud_filtered, output);
-
-  return output;
 }
 
 void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg){
@@ -125,13 +75,12 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg){
     // Convert to pcl point cloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*msg,*cloud_msg);
-    // ROS_DEBUG("%s: new ponitcloud (%i,%i)(%zu)",_name.c_str(),cloud_msg->width,cloud_msg->height,cloud_msg->size());
 
     // Filter cloud
     pcl::PassThrough<pcl::PointXYZ> pass;
     pass.setInputCloud(cloud_msg);
     pass.setFilterFieldName ("z");
-    pass.setFilterLimits(0.001,10000);
+    pass.setFilterLimits(0.001,2);
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
     pass.filter (*cloud);
 
@@ -156,7 +105,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg){
         seg.segment(*inliers, *coefficients);
 
         // Check result
-        if (inliers->indices.size() == 0)
+        if (inliers->indices.size() < 10000)
             break;
 
         // Iterate inliers
@@ -215,17 +164,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg){
         extract.filter(cloudF);
         cloud->swap(cloudF);
 
-        // Display infor
-        // ROS_INFO("%s: fitted plane %i: %fx%s%fy%s%fz%s%f=0 (inliers: %zu/%i)",
-        //          _name.c_str(),n_planes,
-        //          coefficients->values[0],(coefficients->values[1]>=0?"+":""),
-        //          coefficients->values[1],(coefficients->values[2]>=0?"+":""),
-        //          coefficients->values[2],(coefficients->values[3]>=0?"+":""),
-        //          coefficients->values[3],
-        //          inliers->indices.size(),original_size);
-        // ROS_INFO("%s: mean error: %f(mm), standard deviation: %f (mm), max error: %f(mm)",_name.c_str(),mean_error,sigma,max_error);
-        // ROS_INFO("%s: poitns left in cloud %i",_name.c_str(),cloud->width*cloud->height);
-
         // Nest iteration
         n_planes++;
     }
@@ -237,36 +175,32 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg){
     pub.publish(cloud_publish);
 }
 
-// void cloud_callback(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
-// {
-//   sensor_msgs::PointCloud2 output;
+class Color{
+private:
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
 
-//   // output = apply_voxel_filter(cloud_msg);
+public:
+    Color(uint8_t R,uint8_t G,uint8_t B):r(R),g(G),b(B){
 
-//   pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-//   pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-//   // Create the segmentation object
-//   pcl::SACSegmentation<pcl::PointCloud2> seg;
-//   // Optional
-//   seg.setOptimizeCoefficients (true);
-//   // Mandatory
-//   seg.setModelType (pcl::SACMODEL_PLANE);
-//   seg.setMethodType (pcl::SAC_RANSAC);
-//   seg.setDistanceThreshold (0.01);
-  
-//   seg.setInputCloud (cloud);
-//   seg.segment (*inliers, *coefficients);
+    }
 
-
-
-//   // Publish the data
-//   pub.publish(output);
-// }
-
-/**
- * This tutorial demonstrates simple sending of messages over the ROS system.
- */
-
+    void getColor(uint8_t &R,uint8_t &G,uint8_t &B){
+        R = r;
+        G = g;
+        B = b;
+    }
+    void getColor(double &rd, double &gd, double &bd){
+        rd = (double)r/255;
+        gd = (double)g/255;
+        bd = (double)b/255;
+    }
+    uint32_t getColor(){
+        return ((uint32_t)r<<16|(uint32_t)g<<8|(uint32_t)b);
+    }
+};
+std::vector<Color> colors;
 
 void createColors(){
         uint8_t r = 0;
