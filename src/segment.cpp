@@ -238,7 +238,7 @@ int main(int argc, char **argv)
 
   // Initialise the pub object
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic /segmented_cloud and buffer of 1
-  pub = n.advertise<sensor_msgs::PointCloud2>("/segmented_cloud", 1);
+  pub = n.advertise<sensor_msgs::PointCloud2>("/armCamera/segmented_cloud", 1);
 
   // Subscribe message
   ros::Subscriber sub = n.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
