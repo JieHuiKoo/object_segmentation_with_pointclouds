@@ -1,6 +1,6 @@
 #include "ros/ros.h"
 
-#include "std_msgs/Float64MultiArray.h"
+#include "geometry_msgs/Point.h"
 #include <cmath>
 
 #include <pcl/point_cloud.h>
@@ -124,8 +124,8 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
   ec.setClusterTolerance (0.002); // 2cm
-  ec.setMinClusterSize (200);
-  ec.setMaxClusterSize (1000);
+  ec.setMinClusterSize (300);
+  ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
@@ -166,15 +166,24 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   // Publish points
   sensor_msgs::PointCloud2 cloud_publish;
+  geometry_msgs::Point nearestCenter_publish;
 
+  // If we have valid clusters
   if (clusters.size() != 0)
   {
-    std::cout << "Cluster Array Size: " << clusters.size() << "\n";
+    std::cout << "Num of Clusters: " << clusters.size() << "\n";
     pcl::toROSMsg(*clusters[nearestCluster_idx], cloud_publish);
+    nearestCenter_publish.x = nearestCenter.x;
+    nearestCenter_publish.y = nearestCenter.y;
+    nearestCenter_publish.z = nearestCenter.z;
+
   }
   else
   {
     std::cout << "No Cluster Found!\n";
+    nearestCenter_publish.x = 0;
+    nearestCenter_publish.y = 0;
+    nearestCenter_publish.z = 0;
   }
 
  
@@ -182,6 +191,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   cloud_publish.header = msg->header;
 
   pub_nearestCloud.publish(cloud_publish);
+  pub_nearestCloudCenter.publish(nearestCenter_publish);
 }
 
 int main(int argc, char **argv)
@@ -194,8 +204,8 @@ int main(int argc, char **argv)
 
   // Initialise the pub object
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic /segmented_cloud and buffer of 1
-  pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/segmented_cloud", 1);
-  pub_nearestCloudCenter = n.advertise<std_msgs::Float64MultiArray>("/armCamera/segmented_cloudCenter", 1);
+  pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudCluster", 1);
+  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearest_cloudClusterCenter", 1);
 
 
   // Subscribe message
