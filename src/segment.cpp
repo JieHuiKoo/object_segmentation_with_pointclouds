@@ -23,6 +23,13 @@
 
 ros::Publisher pub_nearestCloud;
 ros::Publisher pub_nearestCloudCenter;
+ros::Publisher pub_debug1;
+ros::Publisher pub_debug2;
+ros::Publisher pub_debug3;
+ros::Publisher pub_debug4;
+
+
+
 double _max_distance = 0.01;
 
 double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients)
@@ -192,6 +199,26 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   pub_nearestCloud.publish(cloud_publish);
   pub_nearestCloudCenter.publish(nearestCenter_publish);
+
+  sensor_msgs::PointCloud2 cloud_publish_debug1;
+  pcl::toROSMsg(*cloud,cloud_publish_debug1);
+  cloud_publish_debug1.header = msg->header;
+  pub_debug1.publish(cloud_publish_debug1);
+
+  sensor_msgs::PointCloud2 cloud_publish_debug2;
+  pcl::toROSMsg(*cloudF,cloud_publish_debug2);
+  cloud_publish_debug2.header = msg->header;
+  pub_debug2.publish(cloud_publish_debug2);
+
+  // sensor_msgs::PointCloud2 cloud_publish_debug3;
+  // pcl::toROSMsg(*cloud,cloud_publish_debug3);
+  // cloud_publish_debug2.header = msg->header;
+  // pub_debug3.publish(cloud_publish_debug3);
+
+  // sensor_msgs::PointCloud2 cloud_publish_debug4;
+  // pcl::toROSMsg(*cloud,cloud_publish_debug4);
+  // cloud_publish_debug2.header = msg->header;
+  // pub_debug4.publish(cloud_publish_debug4);
 }
 
 int main(int argc, char **argv)
@@ -207,6 +234,10 @@ int main(int argc, char **argv)
   pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudCluster", 1);
   pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearest_cloudClusterCenter", 1);
 
+  pub_debug1 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/debug1", 1);
+  pub_debug2 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/debug2", 1);
+  pub_debug3 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/debug3", 1);
+  pub_debug4 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/debug4", 1);
 
   // Subscribe message
   ros::Subscriber sub = n.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
