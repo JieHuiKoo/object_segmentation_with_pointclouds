@@ -32,13 +32,6 @@ ros::Publisher pub_debug4;
 
 double _max_distance = 0.01;
 
-double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients)
-{
-    double f1 = fabs(coefficients->values[0]*pt.x+coefficients->values[1]*pt.y+coefficients->values[2]*pt.z+coefficients->values[3]);
-    double f2 = sqrt(pow(coefficients->values[0],2)+pow(coefficients->values[1],2)+pow(coefficients->values[2],2));
-    return f1/f2;
-}
-
 pcl::PointXYZ calc_cluster_center(pcl::PointCloud<pcl::PointXYZ>::Ptr cluster)
 {
   pcl::PointXYZ centerPoint;
@@ -77,13 +70,13 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl::PassThrough<pcl::PointXYZ> pass;
   pass.setInputCloud(cloud_msg);
   pass.setFilterFieldName ("z");
-  pass.setFilterLimits(0.001,2);
+  pass.setFilterLimits(0.001,50);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_zf (new pcl::PointCloud<pcl::PointXYZ>);
   pass.filter (*cloud_zf);
 
   pass.setInputCloud(cloud_zf);
   pass.setFilterFieldName("y");
-  pass.setFilterLimits(0,10);
+  pass.setFilterLimits(-0.1,1);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
   pass.filter (*cloud);
 
@@ -130,7 +123,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Set up Eucludean Cluster Extraction
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.002); // 2cm
+  ec.setClusterTolerance (0.005); // 2cm
   ec.setMinClusterSize (300);
   ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
@@ -147,7 +140,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     cloud_cluster->width = cloud_cluster->points.size (); // For unorganized pointclouds, height is 1. Else,
     cloud_cluster->height = 1;                            // it is like a stack of images with height and width
     cloud_cluster->is_dense = true; //Specify if all the points are finite
-    // std::cout << "Cluster has " << cloud_cluster->points.size() << " points.\n";
     clusters.push_back(cloud_cluster);
   }
   // std::cout << "End\n";
