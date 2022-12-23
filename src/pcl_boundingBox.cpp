@@ -38,7 +38,7 @@ pcl::PointXYZ calc_cluster_center(pcl::PointCloud<pcl::PointXYZ>::Ptr cluster)
   float sumX = 0;
   float sumY = 0;
   float sumZ = 0;
-  int sumPoints = 0;
+  float sumPoints = 0;
 
   for (auto &point : cluster->points)
   {
@@ -52,14 +52,6 @@ pcl::PointXYZ calc_cluster_center(pcl::PointCloud<pcl::PointXYZ>::Ptr cluster)
   centerPoint.z = sumZ/sumPoints;
 
   return centerPoint;
-}
-
-void zero_out_pointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud)
-{
-  for (auto &point : pointcloud->points)
-  {
-    point.z = 0.0;
-  }
 }
 
 float calc_dist_from_camera(pcl::PointXYZ point)
@@ -78,13 +70,13 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl::PassThrough<pcl::PointXYZ> pass;
   pass.setInputCloud(cloud_msg);
   pass.setFilterFieldName ("z");
-  pass.setFilterLimits(-10000,10000);
+  pass.setFilterLimits(0.001,2);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_zf (new pcl::PointCloud<pcl::PointXYZ>);
   pass.filter (*cloud_zf);
 
   pass.setInputCloud(cloud_zf);
   pass.setFilterFieldName("y");
-  pass.setFilterLimits(-10000,10000);
+  pass.setFilterLimits(-0.1,2);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
   pass.filter (*cloud);
 
@@ -130,11 +122,10 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   // Set up Eucludean Cluster Extraction
   std::vector<pcl::PointIndices> cluster_indices;
-
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
   ec.setClusterTolerance (0.002); // 2cm
-  ec.setMinClusterSize (100);
-  ec.setMaxClusterSize (100000);
+  ec.setMinClusterSize (300);
+  ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
@@ -146,16 +137,14 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
     for (const auto& idx : cluster.indices)
       cloud_cluster->points.push_back(cloud_filtered->points[idx]);
-
-    cloud_cluster->width = cloud_filtered->width;   // For unorganized pointclouds, height is 1. Else, it is like a stack of images with height and width.
-    cloud_cluster->height = cloud_filtered->height; // In this case, we want the a organized pointcloud with cluster but rest of the points zero depth
-    cloud_cluster->is_dense = false; //True if there are no invalid points
+    cloud_cluster->width = cloud_cluster->points.size (); // For unorganized pointclouds, height is 1. Else,
+    cloud_cluster->height = 1;                            // it is like a stack of images with height and width
+    cloud_cluster->is_dense = true; //Specify if all the points are finite
     clusters.push_back(cloud_cluster);
   }
+  // std::cout << "End\n";
 
   // Find center point of the clusters and return the nearest cluster
-  // At the same time, we will fill the background of each cluster with point(0, 0, 0)
-
   // Declare initial nearest point
   pcl::PointXYZ nearestCenter;
   int nearestCluster_idx = 0;
@@ -163,8 +152,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   for (int i = 0; i < clusters.size(); ++i)
   {
-    
-    // Find center point of the clusters
     pcl::PointXYZ clusterCenter;
     clusterCenter = calc_cluster_center(clusters[i]);
 
@@ -173,20 +160,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
       nearestCenter = clusterCenter;
       nearestCluster_idx = i;
     }
-    
-    // Zero out the depth of pointcloud background
-    pcl::PointCloud<pcl::PointXYZ>::Ptr not_cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointIndices::Ptr cluster_indices_ptr(new pcl::PointIndices);
-    cluster_indices_ptr->indices = cluster_indices[i].indices;
-    pcl::ExtractIndices<pcl::PointXYZ> extract;
-    extract.setInputCloud(cloud_msg);
-    extract.setIndices(cluster_indices_ptr);
-    extract.setNegative(true);
-    extract.filter(*not_cloud_cluster);
-
-    // zero_out_pointcloud(not_cloud_cluster);
-
-    *clusters[i] += *not_cloud_cluster;
   }
 
 
@@ -198,9 +171,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   if (clusters.size() != 0)
   {
     std::cout << "Num of Clusters: " << clusters.size() << "\n";
-    std::cout << "Cluster Num: " << nearestCluster_idx << "\n";
     pcl::toROSMsg(*clusters[nearestCluster_idx], cloud_publish);
-    // pcl::toROSMsg(*not_cloud_cluster, cloud_publish);
     nearestCenter_publish.x = nearestCenter.x;
     nearestCenter_publish.y = nearestCenter.y;
     nearestCenter_publish.z = nearestCenter.z;
