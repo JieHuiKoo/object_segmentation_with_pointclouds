@@ -10,14 +10,17 @@
 #include <pcl/filters/voxel_grid.h>
 
 #include <pcl/ModelCoefficients.h>
+#include <pcl/filters/project_inliers.h>
 #include <pcl/sample_consensus/method_types.h>
 #include <pcl/sample_consensus/model_types.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
 
+
 #include <pcl/search/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/kdtree/kdtree_flann.h>
 
 #include <sstream>
 
@@ -102,6 +105,36 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_with_colour(pcl::PointClo
   return cloud_xyzrgb;
 }
 
+pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_xyzrgb, pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_xyz, rgb_values &fill_colour)
+{
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+
+  pcl::copyPointCloud(*cloud_xyzrgb, *cloud_xyz);
+  
+  
+  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+  kdtree.setInputCloud(cloud_xyz);
+  std::cout << "blah1" << "\n";
+  for (auto &searchPoint : cluster_xyz->points)
+  {
+    int K = 3;
+    std::vector<int> pointIdxKSearch(K); //to store index of surrounding points 
+    std::vector<float> pointKSquaredDistance(K); // to store distance to surrounding points
+
+    if ( kdtree.nearestKSearch(searchPoint, K, pointIdxKSearch, pointKSquaredDistance) > 0 )
+    {
+        for (size_t i = 0; i < K; ++i)
+        {
+          cloud_xyzrgb->points[ pointIdxKSearch[i] ].r = fill_colour.r;
+          cloud_xyzrgb->points[ pointIdxKSearch[i] ].g = fill_colour.g;
+          cloud_xyzrgb->points[ pointIdxKSearch[i] ].b = fill_colour.b;
+        }
+    }
+  }
+
+  return cloud_xyzrgb;
+}
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr filter_cloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, std::string axis, filter_limits axis_limits)
 {
   // Create output cloud
@@ -125,6 +158,9 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Convert to pcl point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*msg,*cloud_msg);
+
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
+  pcl::fromROSMsg(*msg,*cloud_rgb_msg);
 
   // Filter the cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
@@ -181,7 +217,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract(cluster_indices);
-  std::cout << "blah" << "\n";
 
   // Push the clusters into a vector
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
@@ -198,8 +233,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     clusters.push_back(cloud_cluster);
   }
 
-  // Find center point of the clusters and return the nearest cluster
-  // At the same time, we will fill the background of each cluster with point(0, 0, 0)
+  // Find center point of the clusters and return the idx of nearest cluster
 
   // Declare initial nearest point
   pcl::PointXYZ nearestCenter;
@@ -208,7 +242,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> clusters_rgb;
   for (int i = 0; i < clusters.size(); ++i)
   {
-    
     // Find center point of the clusters
     pcl::PointXYZ clusterCenter;
     clusterCenter = calc_cluster_center(clusters[i]);
@@ -218,37 +251,11 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
       nearestCenter = clusterCenter;
       nearestCluster_idx = i;
     }
-    
-    // Zero out the depth of pointcloud background
-    pcl::PointCloud<pcl::PointXYZ>::Ptr background (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointIndices::Ptr cluster_indices_ptr(new pcl::PointIndices);
-    cluster_indices_ptr->indices = cluster_indices[i].indices;
-    pcl::ExtractIndices<pcl::PointXYZ> extract;
-    extract.setInputCloud(cloud_msg);
-    extract.setIndices(cluster_indices_ptr);
-    extract.setNegative(true);
-    extract.filter(*background);
-
-    //zero_out_pointcloud(background);
-
-    // Convert the cluster to coloured cluster
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr coloured_cluster (new pcl::PointCloud<pcl::PointXYZRGB>);
-    coloured_cluster = convert_pointcloud_pointXYZ_to_pointXYZRGB(clusters[i]);
-    coloured_cluster = fill_pointcloud_with_colour(coloured_cluster, segmented_obj_colour);
-
-    // Convert the background to coloured background
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr coloured_background (new pcl::PointCloud<pcl::PointXYZRGB>);
-    coloured_background = convert_pointcloud_pointXYZ_to_pointXYZRGB(background);
-    coloured_background = fill_pointcloud_with_colour(coloured_background, background_colour);
-
-    // Combine the coloured clouds together
-    *coloured_cluster += *coloured_background;
-    coloured_cluster->width = cloud_msg->width;
-    coloured_cluster->height = cloud_msg->height;
-
-    clusters_rgb.push_back(coloured_cluster);
   }
 
+  // Compare the points of cluster and original, and colour them in white
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filled_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
+  cloud_filled_msg = fill_pointcloud_cluster_with_colour(cloud_rgb_msg, clusters[nearestCluster_idx], segmented_obj_colour);
 
   // Publish points
   sensor_msgs::PointCloud2 cloud_publish;
@@ -262,7 +269,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     std::cout << "Cluster Num: " << nearestCluster_idx << "\n";
 
     pcl::toROSMsg(*clusters[nearestCluster_idx], cloud_publish);
-    pcl::toROSMsg(*clusters_rgb[nearestCluster_idx], cloud_filled_publish);
+    pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish);
 
     nearestCenter_publish.x = nearestCenter.x;
     nearestCenter_publish.y = nearestCenter.y;
