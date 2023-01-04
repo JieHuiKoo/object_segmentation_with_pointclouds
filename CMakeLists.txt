@@ -14,7 +14,12 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   geometry_msgs
   sensor_msgs
+  image_transport
+  cv_bridge
+  std_msgs
 )
+
+find_package(OpenCV)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -119,8 +124,9 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -137,7 +143,7 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_segment src/segment.cpp)
-add_executable(${PROJECT_NAME}_pcl_boundingBox src/pcl_boundingBox.cpp)
+add_executable(${PROJECT_NAME}_boundingBox src/boundingBox.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -153,8 +159,9 @@ add_executable(${PROJECT_NAME}_pcl_boundingBox src/pcl_boundingBox.cpp)
 target_link_libraries(${PROJECT_NAME}_segment
   ${catkin_LIBRARIES}
 )
-target_link_libraries(${PROJECT_NAME}_pcl_boundingBox
+target_link_libraries(${PROJECT_NAME}_boundingBox
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
 )
 
 #############

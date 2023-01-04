@@ -325,9 +325,9 @@ int main(int argc, char **argv)
 
   // Initialise the pub object
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic and buffer of 1
-  pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudCluster", 1);
-  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudClusterFilled", 1);
-  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearest_cloudClusterCentroid", 1);
+  pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
+  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudClusterFilled", 1);
+  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearestCloudClusterCentroid", 1);
 
 
   // Subscribe message
