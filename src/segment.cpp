@@ -3,6 +3,7 @@
 #include "geometry_msgs/Point.h"
 #include <cmath>
 
+#include <pcl/pcl_config.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -27,7 +28,6 @@
 ros::Publisher pub_nearestCloud;
 ros::Publisher pub_nearestCloud_filled;
 ros::Publisher pub_nearestCloudCenter;
-double _max_distance = 0.01;
 
 double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients)
 {
@@ -157,7 +157,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr filter_plane_from_cloud(pcl::PointCloud<pcl:
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setMaxIterations (200);
-  seg.setDistanceThreshold(_max_distance);
+  seg.setDistanceThreshold(0.005);
   
   // Fit a plane
   seg.setInputCloud(input_cloud);
@@ -188,7 +188,7 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
   std::vector<pcl::PointIndices> cluster_indices;
 
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.002); // 2cm
+  ec.setClusterTolerance (0.002); // in m
   ec.setMinClusterSize (100);
   ec.setMaxClusterSize (100000);
   ec.setSearchMethod (tree);
@@ -301,6 +301,8 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
 int main(int argc, char **argv)
 {
+  std::cout << PCL_VERSION << std::endl;
+  
   segmented_obj_colour.r = 255;
   segmented_obj_colour.g = 255;
   segmented_obj_colour.b = 255;
@@ -309,11 +311,11 @@ int main(int argc, char **argv)
   background_colour.g = 0;
   background_colour.b = 0;
 
-  z_axis_limits.min = -10000;
-  z_axis_limits.max = 10000;
+  z_axis_limits.min = -1000;
+  z_axis_limits.max = 1000;
 
-  y_axis_limits.min = -10000;
-  y_axis_limits.max = 10000;
+  y_axis_limits.min = -1000;
+  y_axis_limits.max = 1000;
   
   // Initialise ROS and specify name of node 
   ros::init(argc, argv, "segment");
@@ -324,8 +326,8 @@ int main(int argc, char **argv)
   // Initialise the pub object
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic and buffer of 1
   pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudCluster", 1);
-  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudCluster_filled", 1);
-  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearest_cloudClusterCenter", 1);
+  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearest_cloudClusterFilled", 1);
+  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearest_cloudClusterCentroid", 1);
 
 
   // Subscribe message
