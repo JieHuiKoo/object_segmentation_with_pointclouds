@@ -8,6 +8,9 @@
 
 #include <opencv2/features2d.hpp>
 
+image_transport::Publisher annotatedImagePub;
+ros::Publisher boundingBoxPointsPub;
+
 cv::Mat get_cluster_mask(cv::Mat inputMat)
 {
   // Convert image to grayscale
@@ -101,6 +104,24 @@ std::vector<cv::Point> calc_bounding_box_points(std::vector<cv::Point> biggestCo
   return boundingBoxPoints;
 }
 
+visualization_msgs::Marker convert_CVpoints_to_MarkerPoints(std::vector<cv::Point> CVpoints)
+{
+  visualization_msgs::Marker marker;
+
+  marker.type = visualization_msgs::Marker::POINTS;
+  
+  visualization_msgs::Marker markerPoints;
+  for (size_t idx = 0; idx < CVpoints.size(); idx++)
+  {
+    geometry_msgs::Point p;
+    p.x = CVpoints[idx].x;
+    p.y = CVpoints[idx].y;
+    markerPoints.points.push_back(p);
+  }
+
+  return markerPoints;  
+}
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
     // Convert ROS image to opencv image
@@ -119,12 +140,17 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
     std::vector<cv::Point> boundingBoxPoints;
     boundingBoxPoints = calc_bounding_box_points(biggestContourPoints);
 
+    // Convert the vector of CVpoints to markerPoints
+    visualization_msgs::Marker markerPoints;
+    markerPoints = convert_CVpoints_to_MarkerPoints(boundingBoxPoints);
+    
     // Draw the bounding box 
-    cv::rectangle(cvPtr->image, boundingBoxPoints[0], boundingBoxPoints[1], cv::Scalar(0, 255, 0));
-    // cv::drawContours(cvPtr->image, contours, biggestContourIdx, colors[1], 10);
+    cv::rectangle(cvPtr->image, boundingBoxPoints[0], boundingBoxPoints[1], cv::Scalar(0, 255, 0), 3);
 
-    cv::imshow("view", cvPtr->image);
-    cv::waitKey(30);
+    // Publish the image and coordinates of bounding box
+    annotatedImagePub.publish(cvPtr->toImageMsg());
+    boundingBoxPointsPub.publish(markerPoints);
+
 }
 
 int main(int argc, char **argv)
@@ -137,6 +163,9 @@ int main(int argc, char **argv)
 
   image_transport::ImageTransport it(nh);
   image_transport::Subscriber sub = it.subscribe("/armcamera/nearestCloudClusterImage", 1, imageCallback);
+  annotatedImagePub = it.advertise("/armcamera/nearestCloudClusterImageAnnotated", 1);
+  boundingBoxPointsPub = nh.advertise<visualization_msgs::Marker>("/armcamera/nearestCloudClusterBoundingBoxPoints", 1);
+
   ros::spin();
   cv::destroyWindow("view");
 }
