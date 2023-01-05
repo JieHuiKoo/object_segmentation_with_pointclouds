@@ -17,6 +17,6 @@ The node will publish 3 topics:
 
 To convert the organised pointcloud to image, run the following command
 ```
-rosrun pcl_ros convert_pointcloud_to_image input:=/armCamera/nearest_cloudClusterFilled output:=/armcamera/nearest_cloudClusterImage
+rosrun pcl_ros convert_pointcloud_to_image input:=/armCamera/nearestCloudClusterFilled output:=/armcamera/nearest_cloudClusterImage
 ```
 <img src="https://user-images.githubusercontent.com/31171083/210494018-130a06d2-2968-4163-b348-64517a69a83d.png" width="500" height="300">
