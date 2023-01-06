@@ -256,17 +256,6 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
 
 void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
-  pcl::console::print_info ("Available dimensions from msg: ");
-  pcl::console::print_value ("%s\n", pcl::getFieldsList (*msg).c_str ());
-
-  // std::string result;
-  // for (size_t i = 0; i < *msg.fields.size () - 1; ++i) {
-  //   result += *msg.fields[i].name + " ";
-  // }
-  // result += *msg.fields[msg.fields.size () - 1].name;
-  
-  // pcl::console::print_value ("%s\n", result.c_str ());
-  
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*msg,*cloud_msg);
@@ -278,9 +267,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Convert to pcl point cloud 2
   pcl::PCLPointCloud2::Ptr cloud_2_msg (new pcl::PCLPointCloud2);
   pcl_conversions::toPCL(*msg, *cloud_2_msg);
-  pcl::console::print_info ("Available dimensions: "); 
-  pcl::console::print_value ("%s\n", pcl::getFieldsList (*cloud_2_msg).c_str ());
-
 
   // Filter the cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
