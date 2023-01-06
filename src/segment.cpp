@@ -28,6 +28,7 @@
 ros::Publisher pub_nearestCloud;
 ros::Publisher pub_nearestCloud_filled;
 ros::Publisher pub_nearestCloudCenter;
+ros::Publisher pub_nearestCloud2;
 
 double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients)
 {
@@ -79,25 +80,9 @@ pcl::PointXYZ calc_cluster_center(pcl::PointCloud<pcl::PointXYZ>::Ptr cluster)
   return centerPoint;
 }
 
-void zero_out_pointcloud(pcl::PointCloud<pcl::PointXYZ>::Ptr pointcloud)
-{
-  for (auto &point : pointcloud->points)
-  {
-    point.z = 0.0;
-  }
-}
-
 float calc_dist_from_camera(pcl::PointXYZ point)
 {
   return sqrt(pow(point.x,2) + pow(point.y,2) + pow(point.z,2));
-}
-
-pcl::PointCloud<pcl::PointXYZRGB>::Ptr convert_pointcloud_pointXYZ_to_pointXYZRGB(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz)
-{
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_xyzrgb(new pcl::PointCloud<pcl::PointXYZRGB>);
-  pcl::copyPointCloud(*cloud_xyz, *cloud_xyzrgb);
-
-  return cloud_xyzrgb;
 }
 
 pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_xyzrgb, pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_xyz, rgb_values &fill_colour)
@@ -128,6 +113,39 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::
   }
 
   return cloud_xyzrgb;
+}
+
+pcl::PCLPointCloud2::Ptr segmented_pointcloud2_clusters(pcl::PCLPointCloud2::Ptr cloud_2, pcl::PointCloud<pcl::PointXYZ>::Ptr cluster_xyz)
+{
+  pcl::PCLPointCloud2::Ptr clustered_cloud_2 (new pcl::PCLPointCloud2);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+
+  pcl::fromPCLPointCloud2(*cloud_2, *cloud_xyz);
+  
+  pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+  kdtree.setInputCloud(cloud_xyz);
+  std::cout << "blah2" << "\n";
+  std::vector<int> clusterIndices;
+  for (auto &searchPoint : cluster_xyz->points)
+  {
+    int K = 3;
+    std::vector<int> pointIdxKSearch(K); //to store index of surrounding points 
+    std::vector<float> pointKSquaredDistance(K); // to store distance to surrounding points
+
+    if ( kdtree.nearestKSearch(searchPoint, K, pointIdxKSearch, pointKSquaredDistance) > 0 )
+    {
+        for (size_t i = 0; i < K; ++i)
+        {
+          clusterIndices.push_back(pointIdxKSearch[i]);
+          //clustered_cloud_2 -> data[pointIdxKSearch[i]] = cloud_2 -> data[pointIdxKSearch[i]]; 
+          // pcl::copyPoint(cloud_2 -> data[pointIdxKSearch[i]], clustered_cloud_2 -> data[pointIdxKSearch[i]]);
+        }
+    }
+  }
+  pcl::PointIndices::Ptr ror_indices (new pcl::PointIndices);
+  ror_indices -> indices = clusterIndices;
+  pcl::copyPointCloud(*cloud_2, ror_indices -> indices, *clustered_cloud_2);
+  return clustered_cloud_2;
 }
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr filter_limit_cloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, std::string axis, filter_limits axis_limits)
@@ -238,6 +256,17 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
 
 void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
+  pcl::console::print_info ("Available dimensions from msg: ");
+  pcl::console::print_value ("%s\n", pcl::getFieldsList (*msg).c_str ());
+
+  // std::string result;
+  // for (size_t i = 0; i < *msg.fields.size () - 1; ++i) {
+  //   result += *msg.fields[i].name + " ";
+  // }
+  // result += *msg.fields[msg.fields.size () - 1].name;
+  
+  // pcl::console::print_value ("%s\n", result.c_str ());
+  
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromROSMsg(*msg,*cloud_msg);
@@ -245,6 +274,13 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Convert to pcl point cloud, XYZRGB
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
   pcl::fromROSMsg(*msg,*cloud_rgb_msg);
+
+  // Convert to pcl point cloud 2
+  pcl::PCLPointCloud2::Ptr cloud_2_msg (new pcl::PCLPointCloud2);
+  pcl_conversions::toPCL(*msg, *cloud_2_msg);
+  pcl::console::print_info ("Available dimensions: "); 
+  pcl::console::print_value ("%s\n", pcl::getFieldsList (*cloud_2_msg).c_str ());
+
 
   // Filter the cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
@@ -265,9 +301,25 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filled_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
   cloud_filled_msg = fill_pointcloud_cluster_with_colour(cloud_rgb_msg, clusters[nearestCluster.idx], segmented_obj_colour);
 
+  // Convert clusters to PointCloud2
+  pcl::PCLPointCloud2::Ptr cloud_2_segmented_msg (new pcl::PCLPointCloud2);
+  cloud_2_segmented_msg = segmented_pointcloud2_clusters(cloud_2_msg, clusters[nearestCluster.idx]);
+
+  // Copy relevant parts of pointcloud
+  cloud_2_segmented_msg -> header = cloud_2_msg -> header;
+  cloud_2_segmented_msg -> height = cloud_2_msg -> height;
+  cloud_2_segmented_msg -> width = cloud_2_msg -> width;
+  cloud_2_segmented_msg -> fields = cloud_2_msg -> fields;
+  cloud_2_segmented_msg -> is_bigendian = cloud_2_msg -> is_bigendian;
+  cloud_2_segmented_msg -> point_step = cloud_2_msg -> point_step;
+  cloud_2_segmented_msg -> row_step = cloud_2_msg -> row_step;
+  cloud_2_segmented_msg -> is_dense = cloud_2_msg -> is_dense; 
+
   // Publish points
   sensor_msgs::PointCloud2 cloud_publish;
   sensor_msgs::PointCloud2 cloud_filled_publish;
+  sensor_msgs::PointCloud2 cloud_2_segmented_publish;
+
   geometry_msgs::Point nearestCenter_publish;
 
   // If we have valid clusters
@@ -278,6 +330,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
     pcl::toROSMsg(*clusters[nearestCluster.idx], cloud_publish);
     pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish);
+    pcl_conversions::moveFromPCL(*cloud_2_segmented_msg, cloud_2_segmented_publish);
 
     nearestCenter_publish.x = nearestCluster.centroid.x;
     nearestCenter_publish.y = nearestCluster.centroid.y;
@@ -293,9 +346,13 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 
   cloud_publish.header = msg->header;
   cloud_filled_publish.header = msg->header;
+  cloud_2_segmented_publish.header = msg->header;
+
+
 
   pub_nearestCloud.publish(cloud_publish);
   pub_nearestCloud_filled.publish(cloud_filled_publish);
+  pub_nearestCloud2.publish(cloud_2_segmented_publish);
   pub_nearestCloudCenter.publish(nearestCenter_publish);
 }
 
@@ -327,6 +384,7 @@ int main(int argc, char **argv)
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic and buffer of 1
   pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
   pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudClusterFilled", 1);
+  pub_nearestCloud2 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloud2Cluster", 1);
   pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearestCloudClusterCentroid", 1);
 
 
