@@ -69,7 +69,7 @@ std::vector<cv::Point> get_biggest_contour(cv::Mat image)
   return contours[biggestContourIdx];
 }
 
-std::vector<cv::Point> calc_bounding_box_points(std::vector<cv::Point> biggestContourPoints)
+std::vector<cv::Point> calc_bounding_box_points(std::vector<cv::Point> biggestContourPoints, cv::Point maxPoint)
 {
   std::vector<cv::Point> boundingBoxPoints;
 
@@ -84,19 +84,23 @@ std::vector<cv::Point> calc_bounding_box_points(std::vector<cv::Point> biggestCo
   {
     cv::Point contourPoint = biggestContourPoints[idx];
     if (topLeft.x > contourPoint.x)
-      topLeft.x = contourPoint.x;
+      topLeft.x = contourPoint.x - 20;
     if (topLeft.y > contourPoint.y)
-      topLeft.y = contourPoint.y;
+      topLeft.y = contourPoint.y - 20;
     if (bottomRight.y < contourPoint.y)
-      bottomRight.y = contourPoint.y;
+      bottomRight.y = contourPoint.y + 20;
     if (bottomRight.x < contourPoint.x)
-      bottomRight.x = contourPoint.x;
+      bottomRight.x = contourPoint.x + 20;
   }
 
-  topLeft.x -= 10;
-  topLeft.y -= 10;
-  bottomRight.x += 10;
-  bottomRight.y += 10;
+  if (topLeft.x < 0)
+    topLeft.x = 0;
+  if (topLeft.y < 0)
+    topLeft.y = 0;
+  if (bottomRight.x > maxPoint.x)
+    bottomRight.x = maxPoint.x;
+  if (bottomRight.y > maxPoint.y)
+    bottomRight.y = maxPoint.y;
 
   boundingBoxPoints.push_back(topLeft);
   boundingBoxPoints.push_back(bottomRight);
@@ -106,51 +110,53 @@ std::vector<cv::Point> calc_bounding_box_points(std::vector<cv::Point> biggestCo
 
 visualization_msgs::Marker convert_CVpoints_to_MarkerPoints(std::vector<cv::Point> CVpoints)
 {
-  visualization_msgs::Marker marker;
-
-  marker.type = visualization_msgs::Marker::POINTS;
+  if (CVpoints.size() % 2 != 0)
+  {
+    ROS_ERROR("Bounding Box Exception: Bounding box needs to be even number of points");
+  }
   
-  visualization_msgs::Marker markerPoints;
+  visualization_msgs::Marker boundingBoxMarker;
+  boundingBoxMarker.type = visualization_msgs::Marker::POINTS;
+
   for (size_t idx = 0; idx < CVpoints.size(); idx++)
   {
     geometry_msgs::Point p;
     p.x = CVpoints[idx].x;
     p.y = CVpoints[idx].y;
-    markerPoints.points.push_back(p);
+    boundingBoxMarker.points.push_back(p);
   }
 
-  return markerPoints;  
+  return boundingBoxMarker;  
 }
 
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
-    // Convert ROS image to opencv image
-    cv_bridge::CvImagePtr cvPtr;
-    cvPtr = convert_to_cv(msg);
+  // Convert ROS image to opencv image
+  cv_bridge::CvImagePtr cvPtr;
+  cvPtr = convert_to_cv(msg);
 
-    // Create thresholded mask of the object
-    cv::Mat clusterMask;
-    clusterMask = get_cluster_mask(cvPtr->image);
+  // Create thresholded mask of the object
+  cv::Mat clusterMask;
+  clusterMask = get_cluster_mask(cvPtr->image);
 
-    // Get Contour Points of the biggest contour
-    std::vector<cv::Point> biggestContourPoints;
-    biggestContourPoints = get_biggest_contour(clusterMask);
-    
-    // Calculate Bounding Box Coordinates
-    std::vector<cv::Point> boundingBoxPoints;
-    boundingBoxPoints = calc_bounding_box_points(biggestContourPoints);
+  // Get Contour Points of the biggest contour
+  std::vector<cv::Point> biggestContourPoints;
+  biggestContourPoints = get_biggest_contour(clusterMask);
+  
+  // Calculate Bounding Box Coordinates
+  std::vector<cv::Point> boundingBoxPoints;
+  boundingBoxPoints = calc_bounding_box_points(biggestContourPoints, cv::Point(cvPtr->image.cols, cvPtr->image.rows));
 
-    // Convert the vector of CVpoints to markerPoints
-    visualization_msgs::Marker markerPoints;
-    markerPoints = convert_CVpoints_to_MarkerPoints(boundingBoxPoints);
-    
-    // Draw the bounding box 
-    cv::rectangle(cvPtr->image, boundingBoxPoints[0], boundingBoxPoints[1], cv::Scalar(0, 255, 0), 3);
+  // Convert the vector of CVpoints to markerPoints
+  visualization_msgs::Marker boundingBoxMarker;
+  boundingBoxMarker = convert_CVpoints_to_MarkerPoints(boundingBoxPoints);
+  
+  // Draw the bounding box 
+  cv::rectangle(cvPtr->image, boundingBoxPoints[0], boundingBoxPoints[1], cv::Scalar(0, 255, 0), 3);
 
-    // Publish the image and coordinates of bounding box
-    annotatedImagePub.publish(cvPtr->toImageMsg());
-    boundingBoxPointsPub.publish(markerPoints);
-
+  // Publish the image and coordinates of bounding box
+  annotatedImagePub.publish(cvPtr->toImageMsg());
+  boundingBoxPointsPub.publish(boundingBoxMarker);
 }
 
 int main(int argc, char **argv)
@@ -163,7 +169,7 @@ int main(int argc, char **argv)
 
   image_transport::ImageTransport it(nh);
   image_transport::Subscriber sub = it.subscribe("/armcamera/nearestCloudClusterImage", 1, imageCallback);
-  annotatedImagePub = it.advertise("/armcamera/nearestCloudClusterImageAnnotated", 1);
+  annotatedImagePub = it.advertise("/armcamera/nearestCloudClusterAnnotated", 1);
   boundingBoxPointsPub = nh.advertise<visualization_msgs::Marker>("/armcamera/nearestCloudClusterBoundingBoxPoints", 1);
 
   ros::spin();
