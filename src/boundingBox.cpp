@@ -23,7 +23,7 @@ cv::Mat get_cluster_mask(cv::Mat inputMat)
   int const maxValue = 255;
   cv::threshold(outputMat, outputMat, thresholdValue, maxValue, thresholdType);
 
-  int elementSize = 3;
+  int elementSize = 9;
   cv::Mat element = cv::getStructuringElement(cv::MORPH_ELLIPSE,
                                       cv::Size(2*elementSize + 1, 2*elementSize+1),
                                       cv::Point(elementSize, elementSize));
