@@ -129,6 +129,26 @@ visualization_msgs::Marker convert_CVpoints_to_MarkerPoints(std::vector<cv::Poin
   return boundingBoxMarker;  
 }
 
+void imageCallback(const sensor_msgs::ImageConstPtr&);
+
+int main(int argc, char **argv)
+{
+  std::cout << "OpenCV version : " << CV_VERSION << std::endl;
+  
+  ros::init(argc, argv, "boundingBox");
+  ros::NodeHandle nh;
+  ros::Rate loop_rate(10);
+  cv::namedWindow("view");
+
+  image_transport::ImageTransport it(nh);
+  image_transport::Subscriber sub = it.subscribe("/armCamera/nearestCloudCluster_ImageFromFilledPointCloud", 1, imageCallback);
+  annotatedImagePub = it.advertise("/armCamera/nearestCloudCluster_AnnotatedImageFromFilledPointCloud", 1);
+  boundingBoxPointsPub = nh.advertise<visualization_msgs::Marker>("/armCamera/nearestCloudCluster_BoundingBoxPoints", 1);
+
+  ros::spin();
+  cv::destroyWindow("view");
+}
+
 void imageCallback(const sensor_msgs::ImageConstPtr& msg)
 {
   // Convert ROS image to opencv image
@@ -157,21 +177,4 @@ void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   // Publish the image and coordinates of bounding box
   annotatedImagePub.publish(cvPtr->toImageMsg());
   boundingBoxPointsPub.publish(boundingBoxMarker);
-}
-
-int main(int argc, char **argv)
-{
-  std::cout << "OpenCV version : " << CV_VERSION << std::endl;
-  
-  ros::init(argc, argv, "boundingBox");
-  ros::NodeHandle nh;
-  cv::namedWindow("view");
-
-  image_transport::ImageTransport it(nh);
-  image_transport::Subscriber sub = it.subscribe("/armcamera/nearestCloudClusterImage", 1, imageCallback);
-  annotatedImagePub = it.advertise("/armcamera/nearestCloudClusterAnnotated", 1);
-  boundingBoxPointsPub = nh.advertise<visualization_msgs::Marker>("/armcamera/nearestCloudClusterBoundingBoxPoints", 1);
-
-  ros::spin();
-  cv::destroyWindow("view");
 }

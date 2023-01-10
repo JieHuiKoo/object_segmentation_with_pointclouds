@@ -89,7 +89,6 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::
 {
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
 
-  // 
   pcl::copyPointCloud(*cloud_xyzrgb, *cloud_xyz);
   
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
@@ -369,10 +368,8 @@ int main(int argc, char **argv)
   // Initialise the pub object
   // This pub object will advertise a PointCloud2 sensor_msgs with the topic and buffer of 1
   pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
-  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudClusterFilled", 1);
-  pub_nearestCloud2 = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloud2Cluster", 1);
-  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearestCloudClusterCentroid", 1);
-
+  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster_FilledPointCloud", 1);
+  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearestCloudCluster_Centroid", 1);
 
   // Subscribe message
   ros::Subscriber sub = n.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
