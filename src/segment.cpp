@@ -116,10 +116,10 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::
   
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
   kdtree.setInputCloud(cloud_xyz);
-
+  
   for (auto &searchPoint : cluster_xyz->points)
   {
-    int K = 3;
+    int K = 10;
     std::vector<int> pointIdxKSearch(K); //to store index of surrounding points 
     std::vector<float> pointKSquaredDistance(K); // to store distance to surrounding points
 
@@ -228,9 +228,9 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
   std::vector<pcl::PointIndices> cluster_indices;
 
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.002); // in m
-  ec.setMinClusterSize (100);
-  ec.setMaxClusterSize (100000);
+  ec.setClusterTolerance (0.02); // in m
+  ec.setMinClusterSize (10);
+  ec.setMaxClusterSize (1000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (input_cloud);
   ec.extract(cluster_indices);
@@ -278,9 +278,28 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
 
 void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
+  // Publish points
+  sensor_msgs::PointCloud2 cloud_publish;
+  sensor_msgs::PointCloud2 cloud_filled_publish;
+  sensor_msgs::PointCloud2 cloud_2_segmented_publish;
+  geometry_msgs::Point nearestCenter_publish;
+
+  // Downsample Cloud
+  pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;
+  pcl::PCLPointCloud2ConstPtr cloudPTR(cloud);
+  pcl::PCLPointCloud2 cloud_downsampled;
+  
+  pcl_conversions::toPCL(*msg, *cloud);
+
+  pcl::VoxelGrid<pcl::PCLPointCloud2> sor;
+  sor.setInputCloud(cloudPTR);
+  sor.setLeafSize (0.005, 0.005, 0.005);
+  sor.filter(cloud_downsampled);
+  
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::fromROSMsg(*msg,*cloud_msg);
+  pcl::fromPCLPointCloud2(cloud_downsampled, *cloud_msg);
+  // pcl::fromROSMsg(*msg,*cloud_msg);
 
   // Convert to pcl point cloud, XYZRGB
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -294,7 +313,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
   filtered_cloud = filter_limit_cloud(cloud_msg, "z", z_axis_limits);
   filtered_cloud = filter_limit_cloud(filtered_cloud, "y", y_axis_limits);
-  
+
   // Remove the biggest plane
   filtered_cloud = filter_plane_from_cloud(filtered_cloud);
 
@@ -302,36 +321,32 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
   clusters = find_clusters(filtered_cloud);
 
-  // Find center point of the clusters and return the idx of nearest cluster
-  nearestCluster = find_nearest_cluster(clusters);
-
-  // Compare the points of cluster and original, and colour them in white
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filled_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
-  cloud_filled_msg = fill_pointcloud_cluster_with_colour(cloud_rgb_msg, clusters[nearestCluster.idx], segmented_obj_colour);
-
-  // Convert clusters to PointCloud2
-  pcl::PCLPointCloud2::Ptr cloud_2_segmented_msg (new pcl::PCLPointCloud2);
-  cloud_2_segmented_msg = segmented_pointcloud2_clusters(cloud_2_msg, clusters[nearestCluster.idx]);
-
-  // Copy relevant parts of pointcloud
-  cloud_2_segmented_msg -> header = cloud_2_msg -> header;
-  cloud_2_segmented_msg -> height = cloud_2_msg -> height;
-  cloud_2_segmented_msg -> width = cloud_2_msg -> width;
-  cloud_2_segmented_msg -> fields = cloud_2_msg -> fields;
-  cloud_2_segmented_msg -> is_bigendian = cloud_2_msg -> is_bigendian;
-  cloud_2_segmented_msg -> point_step = cloud_2_msg -> point_step;
-  cloud_2_segmented_msg -> row_step = cloud_2_msg -> row_step;
-  cloud_2_segmented_msg -> is_dense = cloud_2_msg -> is_dense; 
-
-  // Publish points
-  sensor_msgs::PointCloud2 cloud_publish;
-  sensor_msgs::PointCloud2 cloud_filled_publish;
-  sensor_msgs::PointCloud2 cloud_2_segmented_publish;
-  geometry_msgs::Point nearestCenter_publish;
-  
   // If we have valid clusters
   if (clusters.size() != 0)
   {
+    // Find center point of the clusters and return the idx of nearest cluster
+    nearestCluster = find_nearest_cluster(clusters);
+
+    // Compare the points of cluster and original, and colour them in white
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filled_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
+
+    cloud_filled_msg = fill_pointcloud_cluster_with_colour(cloud_rgb_msg, clusters[nearestCluster.idx], segmented_obj_colour);
+
+    // Convert clusters to PointCloud2
+    pcl::PCLPointCloud2::Ptr cloud_2_segmented_msg (new pcl::PCLPointCloud2);
+    cloud_2_segmented_msg = segmented_pointcloud2_clusters(cloud_2_msg, clusters[nearestCluster.idx]);
+
+    // Copy relevant parts of pointcloud
+    cloud_2_segmented_msg -> header = cloud_2_msg -> header;
+    cloud_2_segmented_msg -> height = cloud_2_msg -> height;
+    cloud_2_segmented_msg -> width = cloud_2_msg -> width;
+    cloud_2_segmented_msg -> fields = cloud_2_msg -> fields;
+    cloud_2_segmented_msg -> is_bigendian = cloud_2_msg -> is_bigendian;
+    cloud_2_segmented_msg -> point_step = cloud_2_msg -> point_step;
+    cloud_2_segmented_msg -> row_step = cloud_2_msg -> row_step;
+    cloud_2_segmented_msg -> is_dense = cloud_2_msg -> is_dense; 
+  
+
     std::cout << "Num of Clusters: " << clusters.size() << "\n";
     std::cout << "Cluster Num: " << nearestCluster.idx << "\n";
 
@@ -375,11 +390,11 @@ int main(int argc, char **argv)
   background_colour.g = 0;
   background_colour.b = 0;
 
-  z_axis_limits.min = -1000;
-  z_axis_limits.max = 1000;
+  z_axis_limits.min = -2;
+  z_axis_limits.max = 2;
 
-  y_axis_limits.min = -1000;
-  y_axis_limits.max = 1000;
+  y_axis_limits.min = -2;
+  y_axis_limits.max = 2;
   
   // Initialise ROS and specify name of node 
   ros::init(argc, argv, "segment");
