@@ -25,6 +25,12 @@
 
 #include <sstream>
 
+ros::Subscriber sub;
+ros::Publisher pub_nearestCloud;
+ros::Publisher pub_nearestCloud_filled;
+ros::Publisher pub_nearestCloudCenter;
+ros::Publisher pub_nearestCloud2; 
+
 class Robot
 {
 public:
@@ -270,7 +276,7 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
   return nearestCluster;
 }
 
-void Robot::cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
+void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
@@ -354,7 +360,7 @@ void Robot::cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pub_nearestCloud2.publish(cloud_2_segmented_publish);
   pub_nearestCloudCenter.publish(nearestCenter_publish);
 
-  rate.sleep();
+  // rate.sleep();
 }
 
 int main(int argc, char **argv)
@@ -383,7 +389,13 @@ int main(int argc, char **argv)
 
   ros::Rate rate{1};
 
-  Robot nc = Robot(&nh, rate);
+  // Robot nc = Robot(&nh, rate);
+
+  pub_nearestCloud = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
+  pub_nearestCloud_filled = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster_FilledPointCloud", 1);
+  pub_nearestCloud2 = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloud2Cluster", 1);
+  pub_nearestCloudCenter = nh.advertise<geometry_msgs::Point>("/armCamera/nearestCloudCluster_Centroid", 1);
+  ros::Subscriber sub = nh.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
 
   ros::spin();
   }
