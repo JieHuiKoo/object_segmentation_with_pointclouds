@@ -25,10 +25,27 @@
 
 #include <sstream>
 
-ros::Publisher pub_nearestCloud;
-ros::Publisher pub_nearestCloud_filled;
-ros::Publisher pub_nearestCloudCenter;
-ros::Publisher pub_nearestCloud2;
+class Robot
+{
+public:
+
+  ros::Subscriber sub;
+  ros::Publisher pub_nearestCloud;
+  ros::Publisher pub_nearestCloud_filled;
+  ros::Publisher pub_nearestCloudCenter;
+  ros::Publisher pub_nearestCloud2; 
+  ros::Rate rate{1};
+
+  Robot(ros::NodeHandle *nh, ros::Rate defined_rate){
+      rate = defined_rate;
+      sub = nh->subscribe("/armCamera/depth_registered/points",1000,&Robot::cloud_callback,this);
+      pub_nearestCloud = nh->advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
+      pub_nearestCloud_filled = nh->advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster_FilledPointCloud", 1);
+      pub_nearestCloudCenter = nh->advertise<geometry_msgs::Point>("/armCamera/nearestCloudCluster_Centroid", 1);
+      pub_nearestCloud2 = nh->advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloud2Cluster", 1);
+  }
+  void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg);
+}; 
 
 double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coefficients)
 {
@@ -93,7 +110,7 @@ pcl::PointCloud<pcl::PointXYZRGB>::Ptr fill_pointcloud_cluster_with_colour(pcl::
   
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
   kdtree.setInputCloud(cloud_xyz);
-  std::cout << "blah1" << "\n";
+
   for (auto &searchPoint : cluster_xyz->points)
   {
     int K = 3;
@@ -123,7 +140,7 @@ pcl::PCLPointCloud2::Ptr segmented_pointcloud2_clusters(pcl::PCLPointCloud2::Ptr
   
   pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
   kdtree.setInputCloud(cloud_xyz);
-  std::cout << "blah2" << "\n";
+
   std::vector<int> clusterIndices;
   for (auto &searchPoint : cluster_xyz->points)
   {
@@ -253,7 +270,7 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
   return nearestCluster;
 }
 
-void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
+void Robot::cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
 {
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
@@ -304,9 +321,8 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   sensor_msgs::PointCloud2 cloud_publish;
   sensor_msgs::PointCloud2 cloud_filled_publish;
   sensor_msgs::PointCloud2 cloud_2_segmented_publish;
-
   geometry_msgs::Point nearestCenter_publish;
-
+  
   // If we have valid clusters
   if (clusters.size() != 0)
   {
@@ -333,17 +349,17 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   cloud_filled_publish.header = msg->header;
   cloud_2_segmented_publish.header = msg->header;
 
-
-
   pub_nearestCloud.publish(cloud_publish);
   pub_nearestCloud_filled.publish(cloud_filled_publish);
   pub_nearestCloud2.publish(cloud_2_segmented_publish);
   pub_nearestCloudCenter.publish(nearestCenter_publish);
+
+  rate.sleep();
 }
 
 int main(int argc, char **argv)
 {
-  std::cout << PCL_VERSION << std::endl;
+  std::cout << "PCL Version: " << PCL_VERSION << std::endl;
   
   segmented_obj_colour.r = 255;
   segmented_obj_colour.g = 255;
@@ -363,16 +379,11 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "segment");
   
   // Initialise the node handle
-  ros::NodeHandle n;
+  ros::NodeHandle nh;
 
-  // Initialise the pub object
-  // This pub object will advertise a PointCloud2 sensor_msgs with the topic and buffer of 1
-  pub_nearestCloud = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
-  pub_nearestCloud_filled = n.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster_FilledPointCloud", 1);
-  pub_nearestCloudCenter = n.advertise<geometry_msgs::Point>("/armCamera/nearestCloudCluster_Centroid", 1);
+  ros::Rate rate{1};
 
-  // Subscribe message
-  ros::Subscriber sub = n.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
+  Robot nc = Robot(&nh, rate);
 
   ros::spin();
   }
