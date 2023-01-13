@@ -60,6 +60,12 @@ double point2planedistnace(pcl::PointXYZ pt, pcl::ModelCoefficients::Ptr coeffic
     return f1/f2;
 }
 
+struct plane_info{
+  pcl::ModelCoefficients::Ptr plane_coefficients;
+  pcl::PointIndices::Ptr inlier_indices;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud;
+};
+
 struct rgb_values{
   int r, g, b;
 };
@@ -68,11 +74,12 @@ rgb_values segmented_obj_colour;
 rgb_values background_colour;
 
 struct filter_limits{
-  int max, min;
+  float max, min;
 };
 
 filter_limits z_axis_limits;
 filter_limits y_axis_limits;
+filter_limits x_axis_limits;
 
 struct cluster_info{
   int idx = 0;
@@ -186,36 +193,40 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr filter_limit_cloud(pcl::PointCloud<pcl::Poin
   return output_cloud;
 }
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr filter_plane_from_cloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud)
+pcl::PointCloud<pcl::PointXYZ>::Ptr filter_plane_from_cloud(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointIndices::Ptr plane_indices)
+{
+  pcl::ExtractIndices<pcl::PointXYZ> extract;
+
+  // Extract All points that is the plane
+  extract.setInputCloud(input_cloud);
+  extract.setIndices(plane_indices);
+  extract.setNegative(true);
+  extract.filter(*input_cloud);
+  
+  return input_cloud;
+}
+
+void get_biggest_plane(plane_info* biggest_plane, pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud)
 {
   // Get segmentation ready
-  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
   pcl::SACSegmentation<pcl::PointXYZ> seg;
-  pcl::ExtractIndices<pcl::PointXYZ> extract;
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setMaxIterations (200);
-  seg.setDistanceThreshold(0.005);
-  
+  seg.setDistanceThreshold(0.01);
+
   // Fit a plane
   seg.setInputCloud(input_cloud);
-  seg.segment(*inliers, *coefficients);
+  seg.segment(*(biggest_plane->inlier_indices), *(biggest_plane->plane_coefficients));
 
   // Check result
-  if (inliers->indices.size() == 0)
+  if ((biggest_plane->inlier_indices)->indices.size() == 0)
   {
     ROS_INFO("No Plane Found!");
   }
+  std::cout << "2" << std::endl;
 
-  // Extract All points that is not the plane
-  extract.setInputCloud(input_cloud);
-  extract.setIndices(inliers);
-  extract.setNegative(true);
-  extract.filter(*input_cloud);
-
-  return input_cloud;
 }
 
 std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud)
@@ -228,9 +239,9 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
   std::vector<pcl::PointIndices> cluster_indices;
 
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.02); // in m
-  ec.setMinClusterSize (10);
-  ec.setMaxClusterSize (1000);
+  ec.setClusterTolerance (0.01); // in m
+  ec.setMinClusterSize (5);
+  ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (input_cloud);
   ec.extract(cluster_indices);
@@ -253,7 +264,14 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
   return clusters;
 }
 
-cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters)
+bool is_cluster_on_plane(pcl::PointXYZ cluster_centroid, pcl::ModelCoefficients::Ptr plane_coefficients)
+{
+  // We find if the cluster_centroid is roughly perpendicular (+- 10 degrees) to the plane
+
+  return true;
+}
+
+cluster_info find_nearest_cluster(pcl::ModelCoefficients::Ptr plane_coefficients, std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters)
 {
   // Declare initial nearest point
   cluster_info nearestCluster;
@@ -266,13 +284,20 @@ cluster_info find_nearest_cluster(std::vector<pcl::PointCloud<pcl::PointXYZ>::Pt
     pcl::PointXYZ clusterCenter;
     clusterCenter = calc_cluster_center(clusters[i]);
 
-    if (calc_dist_from_camera(clusterCenter) < calc_dist_from_camera(nearestCluster.centroid))
+    if (is_cluster_on_plane(clusterCenter, plane_coefficients))
     {
-      nearestCluster.centroid = clusterCenter;
-      nearestCluster.idx = i;
+      float object_dist_from_camera = calc_dist_from_camera(clusterCenter);
+
+      if (object_dist_from_camera > 0.2)
+      {
+        if (calc_dist_from_camera(clusterCenter) < calc_dist_from_camera(nearestCluster.centroid))
+        {
+          nearestCluster.centroid = clusterCenter;
+          nearestCluster.idx = i;
+        }
+      }
     }
   }
-
   return nearestCluster;
 }
 
@@ -299,7 +324,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Convert to pcl point cloud, XYZ
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_msg (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::fromPCLPointCloud2(cloud_downsampled, *cloud_msg);
-  // pcl::fromROSMsg(*msg,*cloud_msg);
 
   // Convert to pcl point cloud, XYZRGB
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_rgb_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -310,12 +334,28 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pcl_conversions::toPCL(*msg, *cloud_2_msg);
 
   // Filter the cloud
-  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-  filtered_cloud = filter_limit_cloud(cloud_msg, "z", z_axis_limits);
-  filtered_cloud = filter_limit_cloud(filtered_cloud, "y", y_axis_limits);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr filter_limited_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+  filter_limited_cloud = filter_limit_cloud(cloud_msg, "z", z_axis_limits);
+  filter_limited_cloud = filter_limit_cloud(filter_limited_cloud, "x", x_axis_limits);
+  filter_limited_cloud = filter_limit_cloud(filter_limited_cloud, "y", y_axis_limits);
+
+  // Get biggest plane
+  plane_info biggest_plane;
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr plane_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+
+  biggest_plane.plane_coefficients = coefficients;
+  biggest_plane.inlier_indices = inliers;
+  biggest_plane.plane_cloud = plane_cloud;
+  get_biggest_plane(&biggest_plane, filter_limited_cloud);
+  pcl::copyPointCloud(*filter_limited_cloud, *biggest_plane.inlier_indices, *biggest_plane.plane_cloud);
 
   // Remove the biggest plane
-  filtered_cloud = filter_plane_from_cloud(filtered_cloud);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+  filtered_cloud = filter_plane_from_cloud(filter_limited_cloud, biggest_plane.inlier_indices);
+  pcl::toROSMsg(*filtered_cloud, cloud_filled_publish); // Downsampled cloud
 
   // Find the clusters and put them in a vector
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
@@ -325,7 +365,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   if (clusters.size() != 0)
   {
     // Find center point of the clusters and return the idx of nearest cluster
-    nearestCluster = find_nearest_cluster(clusters);
+    nearestCluster = find_nearest_cluster(biggest_plane.plane_coefficients, clusters);
 
     // Compare the points of cluster and original, and colour them in white
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_filled_msg (new pcl::PointCloud<pcl::PointXYZRGB>);
@@ -351,7 +391,9 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     std::cout << "Cluster Num: " << nearestCluster.idx << "\n";
 
     pcl::toROSMsg(*clusters[nearestCluster.idx], cloud_publish);
-    pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish);
+    // pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish); // Filled Point Cloud
+    // pcl::toROSMsg(*biggest_plane.plane_cloud, cloud_filled_publish); // Biggest plane
+    // pcl::toROSMsg(*cloud_msg, cloud_filled_publish); // Downsampled cloud
     pcl_conversions::moveFromPCL(*cloud_2_segmented_msg, cloud_2_segmented_publish);
 
     nearestCenter_publish.x = nearestCluster.centroid.x;
@@ -375,7 +417,6 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   pub_nearestCloud2.publish(cloud_2_segmented_publish);
   pub_nearestCloudCenter.publish(nearestCenter_publish);
 
-  // rate.sleep();
 }
 
 int main(int argc, char **argv)
@@ -390,12 +431,15 @@ int main(int argc, char **argv)
   background_colour.g = 0;
   background_colour.b = 0;
 
-  z_axis_limits.min = -2;
-  z_axis_limits.max = 2;
+  z_axis_limits.min = 0;
+  z_axis_limits.max = 1;
 
-  y_axis_limits.min = -2;
-  y_axis_limits.max = 2;
-  
+  // Front and Back
+  y_axis_limits.min = 0; // 0 is start of camera
+  y_axis_limits.max = 0.8;    
+
+  x_axis_limits.min = -0.4; // 0 is mid, Left is neg. right is pos
+  x_axis_limits.max = 0.4;  
   // Initialise ROS and specify name of node 
   ros::init(argc, argv, "segment");
   
