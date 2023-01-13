@@ -240,7 +240,7 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
 
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
   ec.setClusterTolerance (0.01); // in m
-  ec.setMinClusterSize (5);
+  ec.setMinClusterSize (30);
   ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (input_cloud);
@@ -267,7 +267,7 @@ std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> find_clusters(pcl::PointCloud<p
 bool is_cluster_on_plane(pcl::PointXYZ cluster_centroid, pcl::ModelCoefficients::Ptr plane_coefficients)
 {
   // We find if the cluster_centroid is roughly perpendicular (+- 10 degrees) to the plane
-
+  // TODO
   return true;
 }
 
@@ -355,7 +355,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   // Remove the biggest plane
   pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud (new pcl::PointCloud<pcl::PointXYZ>);
   filtered_cloud = filter_plane_from_cloud(filter_limited_cloud, biggest_plane.inlier_indices);
-  pcl::toROSMsg(*filtered_cloud, cloud_filled_publish); // Downsampled cloud
+  // pcl::toROSMsg(*filtered_cloud, cloud_filled_publish); // Downsampled cloud
 
   // Find the clusters and put them in a vector
   std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr> clusters;
@@ -391,7 +391,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     std::cout << "Cluster Num: " << nearestCluster.idx << "\n";
 
     pcl::toROSMsg(*clusters[nearestCluster.idx], cloud_publish);
-    // pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish); // Filled Point Cloud
+    pcl::toROSMsg(*cloud_filled_msg, cloud_filled_publish); // Filled Point Cloud
     // pcl::toROSMsg(*biggest_plane.plane_cloud, cloud_filled_publish); // Biggest plane
     // pcl::toROSMsg(*cloud_msg, cloud_filled_publish); // Downsampled cloud
     pcl_conversions::moveFromPCL(*cloud_2_segmented_msg, cloud_2_segmented_publish);
@@ -438,8 +438,8 @@ int main(int argc, char **argv)
   y_axis_limits.min = 0; // 0 is start of camera
   y_axis_limits.max = 0.8;    
 
-  x_axis_limits.min = -0.4; // 0 is mid, Left is neg. right is pos
-  x_axis_limits.max = 0.4;  
+  x_axis_limits.min = -0.25; // 0 is mid, Left is neg. right is pos
+  x_axis_limits.max = 0.25;  
   // Initialise ROS and specify name of node 
   ros::init(argc, argv, "segment");
   
