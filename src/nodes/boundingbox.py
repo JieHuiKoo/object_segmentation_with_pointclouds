@@ -1,13 +1,9 @@
 #! /home/jiehui/anaconda3/envs/tensorflow/bin/python
 
-import os
-cwd = os.getcwd()
-
 import rospy
 import sys
 import math
 import numpy as np
-import os
 import cv2
 
 from sensor_msgs.msg import Image
