@@ -54,8 +54,15 @@ def get_cluster_mask(input_image):
     return dilated
 
 def get_biggest_contour(image):
-    contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contour_info = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
+    if len(contour_info) == 2:
+        # If CV ver 4
+        contours = contour_info[0]
+    else:
+        # If CV ver 3
+        contours = contour_info[1]
+	
     biggest_contour_area = 0
     biggest_contour_idx = 0
 
