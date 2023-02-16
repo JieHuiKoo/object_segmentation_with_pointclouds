@@ -1,5 +1,4 @@
-#! /home/jiehui/anaconda3/envs/tensorflow/bin/python
-
+#! /usr/bin/python3
 import rospy
 import sys
 import math
