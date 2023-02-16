@@ -1,6 +1,6 @@
 #include "ros/ros.h"
 
-#include "geometry_msgs/Point.h"
+#include "geometry_msgs/PoseStamped.h"
 #include <cmath>
 
 #include <pcl/pcl_config.h>
@@ -307,7 +307,7 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
   sensor_msgs::PointCloud2 cloud_publish;
   sensor_msgs::PointCloud2 cloud_filled_publish;
   sensor_msgs::PointCloud2 cloud_2_segmented_publish;
-  geometry_msgs::Point nearestCenter_publish;
+  geometry_msgs::PoseStamped nearestCenter_publish;
 
   // Downsample Cloud
   pcl::PCLPointCloud2* cloud = new pcl::PCLPointCloud2;
@@ -396,16 +396,17 @@ void cloud_callback(const sensor_msgs::PointCloud2::ConstPtr &msg)
     // pcl::toROSMsg(*cloud_msg, cloud_filled_publish); // Downsampled cloud
     pcl_conversions::moveFromPCL(*cloud_2_segmented_msg, cloud_2_segmented_publish);
 
-    nearestCenter_publish.x = nearestCluster.centroid.x;
-    nearestCenter_publish.y = nearestCluster.centroid.y;
-    nearestCenter_publish.z = nearestCluster.centroid.z;
+    nearestCenter_publish.header = msg->header;
+    nearestCenter_publish.pose.position.x = nearestCluster.centroid.x;
+    nearestCenter_publish.pose.position.y = nearestCluster.centroid.y;
+    nearestCenter_publish.pose.position.z = nearestCluster.centroid.z;
   }
   else
   {
     std::cout << "No Cluster Found!\n";
-    nearestCenter_publish.x = 0;
-    nearestCenter_publish.y = 0;
-    nearestCenter_publish.z = 0;
+    nearestCenter_publish.pose.position.x = 0;
+    nearestCenter_publish.pose.position.y = 0;
+    nearestCenter_publish.pose.position.z = 0;
   }
 
   cloud_publish.header = msg->header;
@@ -453,7 +454,7 @@ int main(int argc, char **argv)
   pub_nearestCloud = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster", 1);
   pub_nearestCloud_filled = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloudCluster_FilledPointCloud", 1);
   pub_nearestCloud2 = nh.advertise<sensor_msgs::PointCloud2>("/armCamera/nearestCloud2Cluster", 1);
-  pub_nearestCloudCenter = nh.advertise<geometry_msgs::Point>("/armCamera/nearestCloudCluster_Centroid", 1);
+  pub_nearestCloudCenter = nh.advertise<geometry_msgs::PoseStamped>("/armCamera/nearestCloudCluster_Centroid", 1);
   ros::Subscriber sub = nh.subscribe("/armCamera/depth_registered/points", 1, cloud_callback);
 
   ros::spin();
