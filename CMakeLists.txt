@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(object-segmentation-with-pointclouds)
+project(object_segmentation_with_pointclouds)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -113,7 +113,7 @@ find_package(OpenCV)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES object-segmentation-with-pointclouds
+#  LIBRARIES object_segmentation_with_pointclouds
 #  CATKIN_DEPENDS roscpp rospy
 #  DEPENDS system_lib
 )
@@ -206,7 +206,7 @@ target_link_libraries(${PROJECT_NAME}_segment
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_object-segmentation-with-pointclouds.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_object_segmentation_with_pointclouds.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
