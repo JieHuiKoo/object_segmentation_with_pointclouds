@@ -1,8 +1,8 @@
-# object-segmentation-with-pointclouds
+# object_segmentation_with_pointclouds
 
 To run, execute the following command
 ```
-rosrun object-segmentation-with-pointclouds object-segmentation-with-pointclouds_segment
+rosrun object_segmentation_with_pointclouds object_segmentation_with_pointclouds_segment
 ```
 
 The node will publish 3 topics:
