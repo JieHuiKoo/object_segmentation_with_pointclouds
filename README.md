@@ -3,7 +3,7 @@
 About:
 This package takes in a pointcloud, processes it, and outputs the information of the nearest cloud cluster (nearest object)
 
-To run, execute the following command
+To run, execute the following commands
 ```
 rosrun object_segmentation_with_pointclouds object_segmentation_with_pointclouds_segment
 rosrun object_segmentation_with_pointclouds boundingbox.py
