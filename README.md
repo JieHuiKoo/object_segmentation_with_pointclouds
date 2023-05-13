@@ -8,9 +8,9 @@ rosrun object_segmentation_with_pointclouds object_segmentation_with_pointclouds
 The node will publish 3 topics:
 1) /armCamera/nearestCloudCluster - An unorganised pointcloud containing only the cluster
 <img src="https://user-images.githubusercontent.com/31171083/210493870-480ec94c-8f88-4930-81c2-5c7e41be2044.png" width="500" height="300">
-2) /armCamera/nearestCloudClusterFilled - An organised pointcloud with the input pointcloud and detected nearest object coloured in white
+2) /armCamera/nearestCloudCluster_FilledPointCloud - An organised pointcloud with the input pointcloud and detected nearest object coloured in white
 <img src="https://user-images.githubusercontent.com/31171083/210493942-444399c9-4d7a-4bc0-b6a2-85e44000ca29.png" width="500" height="300">
-3) /armCamera/nearestCloudClusterCentroid - A point message detailing the x,y,z coordinates of the centroid of the nearest object
+3) /armCamera/nearestCloudCluster_Centroid - A point message detailing the x,y,z coordinates of the centroid of the nearest object
    <br />
    <br />
 
