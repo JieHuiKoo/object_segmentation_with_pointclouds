@@ -1,5 +1,8 @@
 # object_segmentation_with_pointclouds
 
+About:
+This package takes in a pointcloud, processes it, and outputs the information of the nearest cloud cluster (nearest object)
+
 To run, execute the following command
 ```
 rosrun object_segmentation_with_pointclouds object_segmentation_with_pointclouds_segment
